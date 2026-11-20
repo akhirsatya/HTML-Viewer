@@ -3,7 +3,9 @@ package com.prototype.htmlviewer;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -28,10 +30,10 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Menampilkan file HTML di WebView dalam mode immersive fullscreen
- * (status bar & navigation bar disembunyikan; geser dari tepi untuk memunculkan sementara).
+ * Menampilkan file HTML di WebView. Tampilan mengikuti ViewerOptions:
+ * edge-to-edge (bar transparan), immersive (bar disembunyikan), atau aman (di antara bar).
  */
-public class ViewerActivity extends Activity {
+public class ViewerActivity extends BaseActivity {
 
     private static final int REQ_FILE_CHOOSER = 2;
     // Base URL "https" supaya localStorage, fetch ke CDN, dll. berjalan normal.
@@ -42,9 +44,11 @@ public class ViewerActivity extends Activity {
     private ValueCallback<Uri[]> fileCallback;
     private View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
+    private ViewerOptions opts;
 
-    // Ikon status bar gelap (untuk latar terang) atau putih (untuk latar gelap)
-    private boolean darkIcons = true;
+    // Hasil deteksi warna bagian atas halaman
+    private int topColor = Color.WHITE;
+    private boolean autoDarkIcons = true;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable colorPoller = new Runnable() {
         @Override
@@ -54,7 +58,7 @@ public class ViewerActivity extends Activity {
         }
     };
 
-    // Ambil warna latar elemen paling atas halaman (di bawah status bar)
+    // Ambil warna latar elemen paling atas halaman
     private static final String JS_TOP_COLOR =
             "(function(){function bg(e){if(!e)return null;var c=getComputedStyle(e).backgroundColor;"
           + "return (c&&c!=='transparent'&&!/rgba\\(.*,\\s*0\\)$/.test(c))?c:null;}"
@@ -66,7 +70,8 @@ public class ViewerActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        opts = ViewerOptions.from(getIntent(), this);
+
         if (Build.VERSION.SDK_INT >= 28) {
             getWindow().getAttributes().layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
@@ -88,8 +93,6 @@ public class ViewerActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
-        s.setSupportZoom(false);
-        s.setBuiltInZoomControls(false);
         s.setDisplayZoomControls(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         s.setJavaScriptCanOpenWindowsAutomatically(true);
@@ -140,7 +143,7 @@ public class ViewerActivity extends Activity {
                 root.addView(view, new FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
                 webView.setVisibility(View.GONE);
-                hideSystemBars();
+                applyBars();
             }
 
             @Override
@@ -152,11 +155,11 @@ public class ViewerActivity extends Activity {
                 webView.setVisibility(View.VISIBLE);
                 if (customViewCallback != null) customViewCallback.onCustomViewHidden();
                 customViewCallback = null;
-                applyEdgeToEdge();
+                applyBars();
             }
         });
 
-        applyEdgeToEdge();
+        applyOptions();
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
         } else {
@@ -167,7 +170,37 @@ public class ViewerActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        setIntent(intent);
+        opts = ViewerOptions.from(intent, this);
+        applyOptions();
         loadFromIntent(intent);
+    }
+
+    // ---------- Pengaturan ----------
+
+    @SuppressWarnings("deprecation")
+    private void applyOptions() {
+        switch (opts.orient) {
+            case ViewerOptions.ORIENT_PORTRAIT:
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT);
+                break;
+            case ViewerOptions.ORIENT_LANDSCAPE:
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+                break;
+            default:
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+        }
+        if (opts.keepOn) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } else {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
+        WebSettings s = webView.getSettings();
+        s.setSupportZoom(opts.zoom);
+        s.setBuiltInZoomControls(opts.zoom);
+        s.setDisplayZoomControls(false);
+        applyBackgrounds();
+        applyBars();
     }
 
     private void loadFromIntent(Intent intent) {
@@ -181,7 +214,7 @@ public class ViewerActivity extends Activity {
                 webView.loadDataWithBaseURL(BASE_URL, text, "text/html", "UTF-8", null);
                 return;
             }
-            Toast.makeText(this, "Tidak ada file untuk dibuka", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.toast_no_file), Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
@@ -189,7 +222,7 @@ public class ViewerActivity extends Activity {
         if ("file".equals(uri.getScheme())) {
             // file:// bisa dimuat langsung, sehingga file CSS/JS/gambar relatif ikut terbaca
             webView.loadUrl(uri.toString());
-            MainActivity.addRecent(this, uri, uri.getLastPathSegment());
+            MainActivity.addRecent(this, uri, uri.getLastPathSegment(), opts.mode);
             return;
         }
 
@@ -201,18 +234,46 @@ public class ViewerActivity extends Activity {
             while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
             String html = new String(out.toByteArray(), StandardCharsets.UTF_8);
             webView.loadDataWithBaseURL(BASE_URL, html, "text/html", "UTF-8", null);
-            MainActivity.addRecent(this, uri, MainActivity.displayName(this, uri));
+            MainActivity.addRecent(this, uri, MainActivity.displayName(this, uri), opts.mode);
         } catch (Exception e) {
-            Toast.makeText(this, "Gagal membuka file: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, getString(R.string.toast_open_failed, e.getMessage()), Toast.LENGTH_LONG).show();
             finish();
         }
     }
 
-    // ---------- Edge-to-edge (bar sistem transparan) ----------
+    // ---------- Bar sistem ----------
 
-    /** Konten digambar sampai ke belakang status bar & navigation bar, bar tetap terlihat transparan. */
+    private boolean effectiveDarkIcons() {
+        switch (opts.icons) {
+            case ViewerOptions.ICONS_DARK:
+                return true;
+            case ViewerOptions.ICONS_LIGHT:
+                return false;
+            default:
+                return autoDarkIcons;
+        }
+    }
+
+    private void applyBackgrounds() {
+        root.setBackgroundColor(topColor);
+        getWindow().setBackgroundDrawable(new ColorDrawable(topColor));
+    }
+
+    /** Terapkan mode tampilan yang dipilih. */
+    private void applyBars() {
+        if (customView != null || opts.mode == ViewerOptions.MODE_IMMERSIVE) {
+            hideSystemBars();
+        } else {
+            showTransparentBars(opts.mode == ViewerOptions.MODE_EDGE);
+        }
+    }
+
+    /**
+     * Bar sistem terlihat dengan latar transparan.
+     * edge = true: konten tampil sampai ke belakang bar. edge = false: konten berada di antara bar.
+     */
     @SuppressWarnings("deprecation")
-    private void applyEdgeToEdge() {
+    private void showTransparentBars(boolean edge) {
         Window w = getWindow();
         w.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN
                 | WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
@@ -228,31 +289,34 @@ public class ViewerActivity extends Activity {
             w.setStatusBarContrastEnforced(false);
             w.setNavigationBarContrastEnforced(false);
         }
+        boolean dark = effectiveDarkIcons();
         if (Build.VERSION.SDK_INT >= 30) {
-            w.setDecorFitsSystemWindows(false);
+            w.setDecorFitsSystemWindows(!edge);
             WindowInsetsController c = w.getInsetsController();
             if (c != null) {
                 c.show(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
                 int light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
                         | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
-                c.setSystemBarsAppearance(darkIcons ? light : 0, light);
+                c.setSystemBarsAppearance(dark ? light : 0, light);
             }
         } else {
-            int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
-            if (darkIcons) {
+            int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
+            if (edge) {
+                flags |= View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+            }
+            if (dark) {
                 flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
             }
             w.getDecorView().setSystemUiVisibility(flags);
         }
     }
 
-    /** Hanya dipakai saat video / elemen masuk fullscreen penuh. */
+    /** Bar sistem disembunyikan (geser dari tepi untuk memunculkan sementara). */
     @SuppressWarnings("deprecation")
     private void hideSystemBars() {
         Window w = getWindow();
         if (Build.VERSION.SDK_INT >= 30) {
+            w.setDecorFitsSystemWindows(false);
             WindowInsetsController c = w.getInsetsController();
             if (c != null) {
                 c.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
@@ -269,7 +333,7 @@ public class ViewerActivity extends Activity {
         }
     }
 
-    /** Cek warna bagian atas halaman, lalu sesuaikan warna ikon status bar. */
+    /** Cek warna bagian atas halaman; dipakai untuk warna ikon bar (mode otomatis) dan latar di mode aman. */
     private void detectTopColor() {
         if (webView == null || customView != null) return;
         webView.evaluateJavascript(JS_TOP_COLOR, value -> {
@@ -283,11 +347,20 @@ public class ViewerActivity extends Activity {
                 double r = Double.parseDouble(p[0].trim());
                 double g = Double.parseDouble(p[1].trim());
                 double bl = Double.parseDouble(p[2].trim());
-                double lum = (0.299 * r + 0.587 * g + 0.114 * bl) / 255.0;
-                boolean wantDark = lum > 0.6;
-                if (wantDark != darkIcons) {
-                    darkIcons = wantDark;
-                    applyEdgeToEdge();
+                int color = Color.rgb((int) r, (int) g, (int) bl);
+                boolean wantDark = (0.299 * r + 0.587 * g + 0.114 * bl) / 255.0 > 0.6;
+                boolean changed = false;
+                if (color != topColor) {
+                    topColor = color;
+                    changed = true;
+                }
+                if (wantDark != autoDarkIcons) {
+                    autoDarkIcons = wantDark;
+                    changed = true;
+                }
+                if (changed) {
+                    applyBackgrounds();
+                    applyBars();
                 }
             } catch (NumberFormatException ignored) {
             }
@@ -297,9 +370,7 @@ public class ViewerActivity extends Activity {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (hasFocus) {
-            if (customView != null) hideSystemBars(); else applyEdgeToEdge();
-        }
+        if (hasFocus) applyBars();
     }
 
     // ---------- Lifecycle ----------
@@ -341,7 +412,7 @@ public class ViewerActivity extends Activity {
     protected void onResume() {
         super.onResume();
         webView.onResume();
-        if (customView != null) hideSystemBars(); else applyEdgeToEdge();
+        applyBars();
         handler.removeCallbacks(colorPoller);
         handler.postDelayed(colorPoller, 800);
     }

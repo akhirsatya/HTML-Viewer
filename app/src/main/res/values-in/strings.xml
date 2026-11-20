@@ -1,0 +1,96 @@
+<resources>
+    <string name="app_name">ProtoView</string>
+
+    <!-- Home -->
+    <string name="home_tagline">Buka prototype HTML-mu seperti app sungguhan.</string>
+    <string name="pick_title">Pilih file HTML</string>
+    <string name="pick_desc">Dari penyimpanan HP, Drive, atau WhatsApp.</string>
+    <string name="pick_button">Pilih file</string>
+    <string name="recent_title">Terakhir dibuka</string>
+    <plurals name="recent_count">
+        <item quantity="other">%1$d file</item>
+    </plurals>
+    <string name="empty_title">Belum ada prototype</string>
+    <string name="empty_desc">File yang kamu buka akan muncul di sini, lengkap dengan mode tampilannya.</string>
+    <string name="open_settings_cd">Pengaturan</string>
+    <string name="display_settings_for">Pengaturan tampilan %1$s</string>
+
+    <!-- Relative time -->
+    <string name="time_just_now">Baru saja</string>
+    <plurals name="time_minutes">
+        <item quantity="other">%1$d menit lalu</item>
+    </plurals>
+    <plurals name="time_hours">
+        <item quantity="other">%1$d jam lalu</item>
+    </plurals>
+    <string name="time_yesterday">Kemarin</string>
+    <plurals name="time_days">
+        <item quantity="other">%1$d hari lalu</item>
+    </plurals>
+
+    <!-- Display options -->
+    <string name="mode_edge">Edge-to-edge</string>
+    <string name="mode_full">Penuh</string>
+    <string name="mode_safe">Aman</string>
+    <string name="mode_edge_desc">Konten sampai ke belakang status bar dan garis swipe home yang transparan.</string>
+    <string name="mode_full_desc">Semua bar sistem disembunyikan. Geser dari tepi layar untuk memunculkannya.</string>
+    <string name="mode_safe_desc">Konten berada di antara bar sistem, tidak ada yang tertutup.</string>
+    <string name="sheet_title_new">Pilih tampilan sebelum dibuka</string>
+    <string name="sheet_title_edit">Pengaturan tampilan</string>
+    <string name="section_display">Tampilan</string>
+    <string name="section_orientation">Orientasi</string>
+    <string name="orient_auto">Otomatis</string>
+    <string name="orient_portrait">Potret</string>
+    <string name="orient_landscape">Lanskap</string>
+    <string name="section_icons">Ikon status bar</string>
+    <string name="icons_auto">Otomatis</string>
+    <string name="icons_dark">Gelap</string>
+    <string name="icons_light">Putih</string>
+    <string name="keep_screen_on">Layar tetap menyala</string>
+    <string name="pinch_zoom">Zoom cubit</string>
+    <string name="open_prototype">Buka prototype</string>
+    <string name="save_and_open">Simpan &amp; buka</string>
+
+    <!-- Remove confirmation -->
+    <string name="delete_title">Hapus dari daftar?</string>
+    <string name="delete_body">%1$s akan dihapus dari daftar ini. File aslinya tetap ada di HP-mu.</string>
+    <string name="cancel">Batal</string>
+    <string name="remove">Hapus</string>
+    <string name="removed_toast">Dihapus</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Pengaturan</string>
+    <string name="back_cd">Kembali</string>
+    <string name="settings_appearance">Tampilan</string>
+    <string name="theme_label">Tema</string>
+    <string name="theme_light">Terang</string>
+    <string name="theme_dark">Gelap</string>
+    <string name="theme_system">Sistem</string>
+    <string name="language_label">Bahasa</string>
+    <string name="language_system_value">Sistem (%1$s)</string>
+    <string name="settings_about">Tentang</string>
+    <string name="about_developer">Tentang developer</string>
+    <string name="app_version">Versi aplikasi</string>
+
+    <!-- Language sheet -->
+    <string name="language_sheet_title">Bahasa</string>
+    <string name="language_sheet_sub">Pilih bahasa app</string>
+    <string name="lang_follow_system">Ikuti sistem</string>
+    <string name="lang_follow_system_sub">Saat ini %1$s</string>
+    <string name="lang_id">Bahasa Indonesia</string>
+    <string name="lang_id_sub">Indonesia</string>
+    <string name="lang_en">English</string>
+    <string name="lang_en_sub">Inggris</string>
+
+    <!-- About the developer -->
+    <string name="logo_cd">Logo Akhir Satya</string>
+    <string name="about_role">Pembuat ProtoView</string>
+    <string name="about_desc">Product designer yang sedang belajar membangun app sendiri. ProtoView lahir dari kebutuhan membuka prototype HTML dengan nyaman di HP, dan jadi langkah awal dari desain menuju produk nyata.</string>
+    <string name="contact_label">Kontak</string>
+    <string name="contact_email">Email</string>
+    <string name="contact_github">GitHub</string>
+
+    <!-- Viewer -->
+    <string name="toast_no_file">Tidak ada file untuk dibuka</string>
+    <string name="toast_open_failed">Gagal membuka file: %1$s</string>
+</resources>

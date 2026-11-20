@@ -23,6 +23,8 @@
         </activity>
 
         <!-- Viewer fullscreen; juga muncul di menu "Buka dengan" untuk file .html -->
+        <activity android:name=".SettingsActivity" />
+        <activity android:name=".AboutActivity" />
         <activity
             android:name=".ViewerActivity"
             android:exported="true"

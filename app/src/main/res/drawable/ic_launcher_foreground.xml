@@ -3,18 +3,26 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Bingkai ponsel -->
+    <!-- Bingkai HP (sudut tajam) -->
     <path
         android:fillColor="#00000000"
         android:strokeColor="#FFFFFF"
-        android:strokeWidth="4"
-        android:pathData="M40,30 h28 a4,4 0 0 1 4,4 v40 a4,4 0 0 1 -4,4 h-28 a4,4 0 0 1 -4,-4 v-40 a4,4 0 0 1 4,-4 z" />
-    <!-- Tanda < / > -->
+        android:strokeWidth="2.4"
+        android:pathData="M38,25 L70,25 L70,83 L38,83 Z" />
+    <!-- Layar berwarna sage tipis -->
     <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="3.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M48,48 l-5,6 l5,6 M60,48 l5,6 l-5,6 M56,46 l-4,16" />
+        android:fillColor="#8FB8A0"
+        android:fillAlpha="0.45"
+        android:pathData="M40.2,27.2 L67.8,27.2 L67.8,80.8 L40.2,80.8 Z" />
+    <!-- Status bar dan garis swipe home -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M48,31.5 L60,31.5 L60,33 L48,33 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M51,76.5 L57,76.5 L57,78 L51,78 Z" />
+    <!-- Tombol play: tanda prototype yang bisa dijalankan -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M49.5,46 L62,54 L49.5,62 Z" />
 </vector>
