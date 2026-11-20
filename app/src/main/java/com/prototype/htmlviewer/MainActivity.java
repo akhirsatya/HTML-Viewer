@@ -45,15 +45,33 @@ public class MainActivity extends BaseActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        String crash = getSharedPreferences("crash", MODE_PRIVATE).getString("trace", null);
+        if (crash != null) {
+            getSharedPreferences("crash", MODE_PRIVATE).edit().remove("trace").apply();
+            showCrash(crash);
+            return;
+        }
         u = new Ui(this);
         appliedKey = AppPrefs.configKey(this);
         u.styleBars();
         buildUi();
     }
 
+    private void showCrash(String trace) {
+        ScrollView sv = new ScrollView(this);
+        TextView t = new TextView(this);
+        t.setText("ProtoView crashed last time. Screenshot this screen and send it to the developer:\n\n" + trace);
+        t.setTextSize(11);
+        t.setTextIsSelectable(true);
+        t.setPadding(40, 80, 40, 80);
+        sv.addView(t);
+        setContentView(sv);
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
+        if (u == null) return;
         // Tema atau bahasa berubah di Pengaturan: bangun ulang layar ini
         if (!AppPrefs.configKey(this).equals(appliedKey)) {
             recreate();
