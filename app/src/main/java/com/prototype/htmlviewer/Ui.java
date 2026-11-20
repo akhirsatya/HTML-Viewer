@@ -131,19 +131,10 @@ final class Ui {
         w.setStatusBarColor(bg);
         w.setNavigationBarColor(bg);
         w.setBackgroundDrawable(new ColorDrawable(bg));
-        if (Build.VERSION.SDK_INT >= 30) {
-            WindowInsetsController c = w.getInsetsController();
-            if (c != null) {
-                int m = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-                        | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
-                c.setSystemBarsAppearance(dark ? 0 : m, m);
-            }
-        } else {
-            View d = w.getDecorView();
-            int f = d.getSystemUiVisibility();
-            int m = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
-            d.setSystemUiVisibility(dark ? (f & ~m) : (f | m));
-        }
+        View d = w.getDecorView(); // paksa decor dibuat dulu
+        int f = d.getSystemUiVisibility();
+        int m = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        d.setSystemUiVisibility(dark ? (f & ~m) : (f | m));
     }
 
     // ---------- Ikon gambar sendiri ----------
