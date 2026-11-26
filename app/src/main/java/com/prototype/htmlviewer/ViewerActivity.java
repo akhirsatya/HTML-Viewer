@@ -71,27 +71,31 @@ public class ViewerActivity extends BaseActivity {
     // Halaman artifact claude.ai punya toolbar sendiri di atas. Sembunyikan semuanya
     // dan buat iframe artifact memenuhi layar supaya tampil seperti app asli.
     private static final String JS_CLEAN_ARTIFACT =
-            "(function(){try{var fs=[].slice.call(document.querySelectorAll('iframe'));"
-          + "if(!fs.length)return 'none';"
+            "(function(){try{"
+          + "var old=document.querySelectorAll('[data-pv-hide],[data-pv-anc]');"
+          + "for(var i=0;i<old.length;i++){old[i].removeAttribute('data-pv-hide');old[i].removeAttribute('data-pv-anc');}"
+          + "var W=window.innerWidth,H=window.innerHeight;"
+          + "var fs=[].slice.call(document.querySelectorAll('iframe')).filter(function(x){"
+          + "return x.offsetWidth>=W*0.6&&x.offsetHeight>=H*0.4;});"
+          + "if(!fs.length)return 'wait';"
           + "fs.sort(function(a,b){return b.offsetWidth*b.offsetHeight-a.offsetWidth*a.offsetHeight;});"
           + "var f=fs[0];"
           + "var st=document.getElementById('pv-clean');"
           + "if(!st){st=document.createElement('style');st.id='pv-clean';"
-          + "st.textContent='html,body{margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important}';"
+          + "st.textContent='[data-pv-hide]{display:none!important}"
+          + "[data-pv-anc]{transform:none!important;filter:none!important;margin:0!important;padding:0!important;border:0!important;"
+          + "position:static!important;max-width:none!important;width:100%!important;height:100%!important}"
+          + "iframe[data-pv-frame]{position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;"
+          + "width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;border:0!important;z-index:2147483647!important}"
+          + "html,body{margin:0!important;padding:0!important;overflow:hidden!important}';"
           + "document.head.appendChild(st);}"
           + "var n=f;"
           + "while(n&&n!==document.body){var p=n.parentElement;if(!p)break;"
-          + "[].slice.call(p.children).forEach(function(c){if(c!==n&&c.tagName!=='STYLE'&&c.tagName!=='SCRIPT'){c.style.setProperty('display','none','important');}});"
-          + "if(p!==document.body){['transform','filter','perspective'].forEach(function(k){p.style.setProperty(k,'none','important');});"
-          + "['margin','padding','border','top','left','right','bottom'].forEach(function(k){p.style.setProperty(k,'0','important');});"
-          + "p.style.setProperty('position','static','important');p.style.setProperty('max-width','none','important');"
-          + "p.style.setProperty('width','100%','important');p.style.setProperty('height','100%','important');}"
+          + "[].slice.call(p.children).forEach(function(c){if(c!==n&&c.tagName!=='STYLE'&&c.tagName!=='SCRIPT'&&c.tagName!=='LINK'){c.setAttribute('data-pv-hide','1');}});"
+          + "if(p!==document.body)p.setAttribute('data-pv-anc','1');"
           + "n=p;}"
-          + "f.style.setProperty('position','fixed','important');"
-          + "['top','left','right','bottom'].forEach(function(k){f.style.setProperty(k,'0','important');});"
-          + "f.style.setProperty('width','100vw','important');f.style.setProperty('height','100vh','important');"
-          + "f.style.setProperty('max-width','none','important');f.style.setProperty('max-height','none','important');"
-          + "f.style.setProperty('border','0','important');f.style.setProperty('z-index','2147483647','important');"
+          + "var prev=document.querySelectorAll('iframe[data-pv-frame]');for(var j=0;j<prev.length;j++)prev[j].removeAttribute('data-pv-frame');"
+          + "f.setAttribute('data-pv-frame','1');"
           + "return 'ok';}catch(e){return 'err';}})()";
 
     private boolean isArtifactPage(String url) {
@@ -102,12 +106,18 @@ public class ViewerActivity extends BaseActivity {
                 && u.getPath() != null && u.getPath().contains("artifact");
     }
 
-    /** Ulangi beberapa detik karena halaman dibuat bertahap oleh JavaScript. */
-    private void cleanArtifactPage(final int tries) {
-        if (webView == null || tries <= 0) return;
-        if (!isArtifactPage(webView.getUrl())) return;
-        webView.evaluateJavascript(JS_CLEAN_ARTIFACT, null);
-        handler.postDelayed(() -> cleanArtifactPage(tries - 1), 800);
+    private int cleanGen = 0;
+
+    /** Ulangi beberapa detik karena halaman dibuat bertahap oleh JavaScript (juga setelah login). */
+    private void startCleaning() {
+        cleanGen++;
+        cleanArtifactPage(cleanGen, 40);
+    }
+
+    private void cleanArtifactPage(final int gen, final int tries) {
+        if (webView == null || tries <= 0 || gen != cleanGen) return;
+        if (isArtifactPage(webView.getUrl())) webView.evaluateJavascript(JS_CLEAN_ARTIFACT, null);
+        handler.postDelayed(() -> cleanArtifactPage(gen, tries - 1), 800);
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -147,7 +157,7 @@ public class ViewerActivity extends BaseActivity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 detectTopColor();
-                if (isArtifactPage(url)) cleanArtifactPage(25);
+                if (isArtifactPage(url)) startCleaning();
             }
 
             @Override
