@@ -105,4 +105,9 @@
     <string name="toast_bad_link">That doesn\'t look like a link.</string>
     <string name="link_paste">Paste</string>
     <string name="toast_clipboard_empty">No link in the clipboard.</string>
+    <string name="proto_menu_title">Prototype settings</string>
+    <string name="proto_menu_sub">Changes apply right away.</string>
+    <string name="menu_resume">Back to prototype</string>
+    <string name="close_prototype">Close prototype</string>
+    <string name="hint_three_finger">Tap with 3 fingers to open the prototype menu</string>
 </resources>

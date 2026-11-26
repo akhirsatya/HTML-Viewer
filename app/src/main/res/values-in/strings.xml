@@ -101,4 +101,9 @@
     <string name="toast_bad_link">Itu sepertinya bukan link.</string>
     <string name="link_paste">Tempel</string>
     <string name="toast_clipboard_empty">Tidak ada link di clipboard.</string>
+    <string name="proto_menu_title">Pengaturan prototype</string>
+    <string name="proto_menu_sub">Perubahan langsung diterapkan.</string>
+    <string name="menu_resume">Kembali ke prototype</string>
+    <string name="close_prototype">Tutup prototype</string>
+    <string name="hint_three_finger">Ketuk dengan 3 jari untuk membuka menu prototype</string>
 </resources>

@@ -5,12 +5,15 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
+import android.graphics.Rect;
+import android.graphics.Bitmap;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.PixelCopy;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
@@ -50,12 +53,15 @@ public class ViewerActivity extends BaseActivity {
     // Hasil deteksi warna bagian atas halaman
     private int topColor = Color.WHITE;
     private boolean autoDarkIcons = true;
+    // Hasil membaca piksel layar sungguhan (bekerja juga untuk isi iframe, mis. artifact Claude)
+    private boolean autoDarkStatus = true, autoDarkNav = true, pixelOk = false, copying = false;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable colorPoller = new Runnable() {
         @Override
         public void run() {
             detectTopColor();
-            handler.postDelayed(this, 1500);
+            samplePixels();
+            handler.postDelayed(this, 900);
         }
     };
 
@@ -260,6 +266,7 @@ public class ViewerActivity extends BaseActivity {
             webView.restoreState(savedInstanceState);
         } else {
             loadFromIntent(getIntent());
+            showHintOnce();
         }
     }
 
@@ -354,17 +361,161 @@ public class ViewerActivity extends BaseActivity {
         }
     }
 
+    // ---------- Ketuk 3 jari: panel pengaturan prototype ----------
+
+    private boolean tfActive = false;
+    private long tfStart = 0;
+    private final float[] tfX = new float[3], tfY = new float[3];
+    private boolean menuOpen = false;
+
+    @Override
+    public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
+        switch (ev.getActionMasked()) {
+            case android.view.MotionEvent.ACTION_DOWN:
+                tfActive = false;
+                break;
+            case android.view.MotionEvent.ACTION_POINTER_DOWN:
+                if (ev.getPointerCount() == 3) {
+                    tfActive = true;
+                    tfStart = ev.getEventTime();
+                    for (int i = 0; i < 3; i++) {
+                        tfX[i] = ev.getX(i);
+                        tfY[i] = ev.getY(i);
+                    }
+                } else {
+                    tfActive = false;
+                }
+                break;
+            case android.view.MotionEvent.ACTION_MOVE:
+                if (tfActive && ev.getPointerCount() == 3) {
+                    float slop = android.view.ViewConfiguration.get(this).getScaledTouchSlop() * 2f;
+                    for (int i = 0; i < 3; i++) {
+                        if (Math.abs(ev.getX(i) - tfX[i]) > slop || Math.abs(ev.getY(i) - tfY[i]) > slop) {
+                            tfActive = false;
+                        }
+                    }
+                }
+                break;
+            case android.view.MotionEvent.ACTION_POINTER_UP:
+                if (tfActive && ev.getPointerCount() == 3 && ev.getEventTime() - tfStart < 600) {
+                    tfActive = false;
+                    showMenu();
+                }
+                break;
+            case android.view.MotionEvent.ACTION_CANCEL:
+            case android.view.MotionEvent.ACTION_UP:
+                tfActive = false;
+                break;
+            default:
+                break;
+        }
+        return super.dispatchTouchEvent(ev);
+    }
+
+    private void showMenu() {
+        if (menuOpen) return;
+        menuOpen = true;
+        ViewerMenu m = new ViewerMenu(this, opts, this::applyOptions, this::finish);
+        m.show(() -> menuOpen = false);
+    }
+
+    private void showHintOnce() {
+        android.content.SharedPreferences p = getSharedPreferences("hints", MODE_PRIVATE);
+        if (p.getBoolean("three_finger", false)) return;
+        p.edit().putBoolean("three_finger", true).apply();
+        handler.postDelayed(() -> Toast.makeText(this, R.string.hint_three_finger, Toast.LENGTH_LONG).show(), 1200);
+    }
+
     // ---------- Bar sistem ----------
 
     private boolean effectiveDarkIcons() {
+        return iconDark(autoDarkIcons);
+    }
+
+    private boolean iconDark(boolean auto) {
         switch (opts.icons) {
             case ViewerOptions.ICONS_DARK:
                 return true;
             case ViewerOptions.ICONS_LIGHT:
                 return false;
             default:
-                return autoDarkIcons;
+                return auto;
         }
+    }
+
+    private int barHeight(String name, int fallbackDp) {
+        int id = getResources().getIdentifier(name, "dimen", "android");
+        int h = id > 0 ? getResources().getDimensionPixelSize(id) : 0;
+        return h > 0 ? h : (int) (fallbackDp * getResources().getDisplayMetrics().density);
+    }
+
+    /** Baca warna piksel di balik status bar dan navigation bar, lalu atur warna ikonnya. */
+    private void samplePixels() {
+        if (webView == null || customView != null || copying || opts.mode == ViewerOptions.MODE_IMMERSIVE) return;
+        final View dv = getWindow().getDecorView();
+        final int w = dv.getWidth(), h = dv.getHeight();
+        if (w <= 0 || h <= 0 || !dv.isAttachedToWindow()) return;
+        final boolean edge = opts.mode == ViewerOptions.MODE_EDGE;
+        final int sb = barHeight("status_bar_height", 24), nb = Math.min(barHeight("navigation_bar_height", 24), h / 6);
+        final int strip = Math.max(6, (int) (6 * getResources().getDisplayMetrics().density));
+        final Rect top = edge ? new Rect(0, 0, w, sb) : new Rect(0, sb, w, Math.min(h, sb + strip));
+        final Rect bottom = edge ? new Rect(0, h - nb, w, h) : new Rect(0, Math.max(0, h - nb - strip), w, h - nb);
+        if (top.height() <= 0 || bottom.height() <= 0) return;
+        copying = true;
+        final Bitmap bt = Bitmap.createBitmap(24, 4, Bitmap.Config.ARGB_8888);
+        final Bitmap bb = Bitmap.createBitmap(24, 4, Bitmap.Config.ARGB_8888);
+        try {
+            PixelCopy.request(getWindow(), top, bt, r1 -> {
+                if (r1 != PixelCopy.SUCCESS) {
+                    copying = false;
+                    return;
+                }
+                try {
+                    PixelCopy.request(getWindow(), bottom, bb, r2 -> {
+                        copying = false;
+                        if (r2 == PixelCopy.SUCCESS) applySamples(bt, bb);
+                    }, handler);
+                } catch (Exception e) {
+                    copying = false;
+                }
+            }, handler);
+        } catch (Exception e) {
+            copying = false;
+        }
+    }
+
+    private int[] avg(Bitmap b) {
+        long r = 0, g = 0, bl = 0;
+        int n = b.getWidth() * b.getHeight();
+        for (int y = 0; y < b.getHeight(); y++) {
+            for (int x = 0; x < b.getWidth(); x++) {
+                int c = b.getPixel(x, y);
+                r += Color.red(c);
+                g += Color.green(c);
+                bl += Color.blue(c);
+            }
+        }
+        return new int[]{(int) (r / n), (int) (g / n), (int) (bl / n)};
+    }
+
+    private boolean isBright(int[] c) {
+        return (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) / 255.0 > 0.55;
+    }
+
+    private void applySamples(Bitmap bt, Bitmap bb) {
+        int[] t = avg(bt), n = avg(bb);
+        boolean sd = isBright(t), nd = isBright(n);
+        int color = Color.rgb(t[0], t[1], t[2]);
+        boolean changed = !pixelOk || sd != autoDarkStatus || nd != autoDarkNav;
+        pixelOk = true;
+        autoDarkStatus = sd;
+        autoDarkNav = nd;
+        autoDarkIcons = sd;
+        if (color != topColor) {
+            topColor = color;
+            applyBackgrounds();
+        }
+        if (changed) applyBars();
     }
 
     private void applyBackgrounds() {
@@ -402,24 +553,24 @@ public class ViewerActivity extends BaseActivity {
             w.setStatusBarContrastEnforced(false);
             w.setNavigationBarContrastEnforced(false);
         }
-        boolean dark = effectiveDarkIcons();
+        boolean dark = iconDark(autoDarkStatus);
+        boolean navDark = iconDark(autoDarkNav);
         if (Build.VERSION.SDK_INT >= 30) {
             w.setDecorFitsSystemWindows(!edge);
             WindowInsetsController c = w.getInsetsController();
             if (c != null) {
                 c.show(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
-                int light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-                        | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
-                c.setSystemBarsAppearance(dark ? light : 0, light);
+                int st = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS;
+                int nv = WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+                c.setSystemBarsAppearance((dark ? st : 0) | (navDark ? nv : 0), st | nv);
             }
         } else {
             int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
             if (edge) {
                 flags |= View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
             }
-            if (dark) {
-                flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
-            }
+            if (dark) flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            if (navDark) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
             w.getDecorView().setSystemUiVisibility(flags);
         }
     }
@@ -450,7 +601,7 @@ public class ViewerActivity extends BaseActivity {
     private void detectTopColor() {
         if (webView == null || customView != null) return;
         webView.evaluateJavascript(JS_TOP_COLOR, value -> {
-            if (value == null) return;
+            if (value == null || pixelOk) return;
             String v = value.replace("\"", "");
             int a = v.indexOf('('), b = v.indexOf(')');
             if (a < 0 || b < 0) return;
@@ -469,6 +620,8 @@ public class ViewerActivity extends BaseActivity {
                 }
                 if (wantDark != autoDarkIcons) {
                     autoDarkIcons = wantDark;
+                    autoDarkStatus = wantDark;
+                    autoDarkNav = wantDark;
                     changed = true;
                 }
                 if (changed) {
