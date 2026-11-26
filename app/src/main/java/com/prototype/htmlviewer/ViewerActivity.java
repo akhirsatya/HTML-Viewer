@@ -106,6 +106,16 @@ public class ViewerActivity extends BaseActivity {
                 && u.getPath() != null && u.getPath().contains("artifact");
     }
 
+    private WebView popupView;
+
+    private void closePopup() {
+        if (popupView != null) {
+            root.removeView(popupView);
+            popupView.destroy();
+            popupView = null;
+        }
+    }
+
     private int cleanGen = 0;
 
     /** Ulangi beberapa detik karena halaman dibuat bertahap oleh JavaScript (juga setelah login). */
@@ -150,7 +160,7 @@ public class ViewerActivity extends BaseActivity {
         s.setDisplayZoomControls(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         s.setJavaScriptCanOpenWindowsAutomatically(true);
-        s.setSupportMultipleWindows(false);
+        s.setSupportMultipleWindows(true); // popup login (mis. Google) harus jadi jendela terpisah
         WebView.setWebContentsDebuggingEnabled(true); // bisa di-inspect dari chrome://inspect
 
         webView.setWebViewClient(new WebViewClient() {
@@ -177,6 +187,39 @@ public class ViewerActivity extends BaseActivity {
         });
 
         webView.setWebChromeClient(new WebChromeClient() {
+            // Popup (mis. login Google): tampil sebagai lapisan di atas halaman, tetap terhubung ke halaman asal
+            @Override
+            public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
+                final WebView pop = new WebView(ViewerActivity.this);
+                WebSettings ps = pop.getSettings();
+                ps.setJavaScriptEnabled(true);
+                ps.setDomStorageEnabled(true);
+                ps.setJavaScriptCanOpenWindowsAutomatically(true);
+                ps.setSupportMultipleWindows(true);
+                ps.setUserAgentString(ps.getUserAgentString().replace("; wv", ""));
+                CookieManager.getInstance().setAcceptThirdPartyCookies(pop, true);
+                pop.setWebViewClient(new WebViewClient());
+                pop.setWebChromeClient(new WebChromeClient() {
+                    @Override
+                    public void onCloseWindow(WebView window) {
+                        closePopup();
+                    }
+                });
+                closePopup();
+                popupView = pop;
+                root.addView(pop, new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+                WebView.WebViewTransport t = (WebView.WebViewTransport) resultMsg.obj;
+                t.setWebView(pop);
+                resultMsg.sendToTarget();
+                return true;
+            }
+
+            @Override
+            public void onCloseWindow(WebView window) {
+                closePopup();
+            }
+
             @Override
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
@@ -449,7 +492,9 @@ public class ViewerActivity extends BaseActivity {
 
     @Override
     public void onBackPressed() {
-        if (customView != null) {
+        if (popupView != null) {
+            closePopup();
+        } else if (customView != null) {
             webView.getWebChromeClient().onHideCustomView();
         } else if (webView.canGoBack()) {
             webView.goBack();
