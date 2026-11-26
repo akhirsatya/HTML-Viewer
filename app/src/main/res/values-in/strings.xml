@@ -106,4 +106,11 @@
     <string name="menu_resume">Kembali ke prototype</string>
     <string name="close_prototype">Tutup prototype</string>
     <string name="hint_three_finger">Ketuk dengan 3 jari untuk membuka menu prototype</string>
+    <string name="item_rename">Ganti nama</string>
+    <string name="item_remove">Hapus dari daftar</string>
+    <string name="rename_title">Ganti nama</string>
+    <string name="rename_desc">Beri nama yang mudah dikenali. Kosongkan untuk memakai nama asli.</string>
+    <string name="rename_hint">Nama</string>
+    <string name="save">Simpan</string>
+    <string name="renamed_toast">Nama diganti</string>
 </resources>

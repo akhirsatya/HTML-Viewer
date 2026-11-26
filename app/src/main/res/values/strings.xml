@@ -110,4 +110,11 @@
     <string name="menu_resume">Back to prototype</string>
     <string name="close_prototype">Close prototype</string>
     <string name="hint_three_finger">Tap with 3 fingers to open the prototype menu</string>
+    <string name="item_rename">Rename</string>
+    <string name="item_remove">Remove from list</string>
+    <string name="rename_title">Rename</string>
+    <string name="rename_desc">Give it a name that\'s easy to recognize. Leave empty to use the original name.</string>
+    <string name="rename_hint">Name</string>
+    <string name="save">Save</string>
+    <string name="renamed_toast">Renamed</string>
 </resources>

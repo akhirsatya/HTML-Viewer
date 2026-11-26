@@ -449,6 +449,94 @@ public class MainActivity extends BaseActivity {
         return row;
     }
 
+    // ---------- Menu item recent: ganti nama / hapus ----------
+
+    private TextView menuRow(String label, int color, final Runnable action, final Dialog d) {
+        TextView t = u.text(label, 16, color, true);
+        t.setPadding(u.dp(16), u.dp(16), u.dp(16), u.dp(16));
+        t.setBackground(u.rect(u.sheet, u.line, 1));
+        t.setOnClickListener(v -> {
+            d.dismiss();
+            action.run();
+        });
+        t.setLayoutParams(u.lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0, 8, 0, 0));
+        return t;
+    }
+
+    private void showItemMenu(final String uri, final String name) {
+        final Dialog d = u.newDialog();
+        LinearLayout sheet = new LinearLayout(this);
+        sheet.setOrientation(LinearLayout.VERTICAL);
+        sheet.setPadding(u.dp(20), u.dp(12), u.dp(20), u.dp(24));
+        sheet.setBackground(u.rect(u.sheet, u.line, 1));
+
+        View handle = new View(this);
+        handle.setBackgroundColor(u.line);
+        LinearLayout.LayoutParams hp = u.lp(u.dp(36), u.dp(4), 0, 0, 0, 16);
+        hp.gravity = Gravity.CENTER_HORIZONTAL;
+        sheet.addView(handle, hp);
+
+        TextView title = u.text(name, 18, u.text, true);
+        title.setSingleLine(true);
+        title.setEllipsize(TextUtils.TruncateAt.MIDDLE);
+        sheet.addView(title, u.lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0, 0, 0, 6));
+
+        sheet.addView(menuRow(getString(R.string.item_rename), u.text, () -> showRenameDialog(uri, name), d));
+        sheet.addView(menuRow(getString(R.string.item_remove), u.danger, () ->
+                u.confirm(getString(R.string.delete_title), getString(R.string.delete_body, name), name,
+                        getString(R.string.cancel), getString(R.string.remove), () -> {
+                            removeRecent(uri);
+                            Toast.makeText(this, R.string.removed_toast, Toast.LENGTH_SHORT).show();
+                        }), d));
+        u.showBottom(d, sheet);
+    }
+
+    private void showRenameDialog(final String uri, String current) {
+        final Dialog d = u.newDialog();
+        LinearLayout sheet = new LinearLayout(this);
+        sheet.setOrientation(LinearLayout.VERTICAL);
+        sheet.setPadding(u.dp(20), u.dp(12), u.dp(20), u.dp(24));
+        sheet.setBackground(u.rect(u.sheet, u.line, 1));
+
+        View handle = new View(this);
+        handle.setBackgroundColor(u.line);
+        LinearLayout.LayoutParams hp = u.lp(u.dp(36), u.dp(4), 0, 0, 0, 16);
+        hp.gravity = Gravity.CENTER_HORIZONTAL;
+        sheet.addView(handle, hp);
+
+        sheet.addView(u.text(getString(R.string.rename_title), 18, u.text, true));
+        sheet.addView(u.text(getString(R.string.rename_desc), 13, u.sub, false),
+                u.lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0, 4, 0, 14));
+
+        final EditText input = new EditText(this);
+        input.setHint(getString(R.string.rename_hint));
+        input.setHintTextColor(u.sub);
+        input.setTextColor(u.text);
+        input.setTextSize(15);
+        input.setTypeface(u.body);
+        input.setSingleLine(true);
+        input.setText(current);
+        input.setSelectAllOnFocus(true);
+        input.setBackground(u.rect(u.surf, u.line, 1));
+        input.setPadding(u.dp(14), u.dp(14), u.dp(14), u.dp(14));
+        sheet.addView(input, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView save = u.text(getString(R.string.save), 16, u.onPrim, true);
+        save.setGravity(Gravity.CENTER);
+        save.setBackground(u.rect(u.prim, 0, 0));
+        save.setOnClickListener(v -> {
+            d.dismiss();
+            renameRecent(uri, input.getText().toString());
+            Toast.makeText(this, R.string.renamed_toast, Toast.LENGTH_SHORT).show();
+        });
+        sheet.addView(save, u.lp(ViewGroup.LayoutParams.MATCH_PARENT, u.dp(54), 0, 16, 0, 0));
+
+        d.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                | android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+        u.showBottom(d, sheet);
+        input.requestFocus();
+    }
+
     // ---------- Daftar file terakhir ----------
 
     static String displayName(Activity a, Uri uri) {
@@ -475,8 +563,17 @@ public class MainActivity extends BaseActivity {
             JSONArray old = new JSONArray(p.getString(KEY_LIST, "[]"));
             JSONArray fresh = new JSONArray();
             JSONObject item = new JSONObject();
+            boolean custom = false;
+            for (int i = 0; i < old.length(); i++) {
+                JSONObject o = old.getJSONObject(i);
+                if (o.getString("uri").equals(uri.toString()) && o.optBoolean("custom", false)) {
+                    name = o.optString("name", name); // nama buatan user tidak ditimpa
+                    custom = true;
+                }
+            }
             item.put("uri", uri.toString());
             item.put("name", name);
+            item.put("custom", custom);
             item.put("time", System.currentTimeMillis());
             item.put("mode", mode);
             fresh.put(item);
@@ -487,6 +584,29 @@ public class MainActivity extends BaseActivity {
             p.edit().putString(KEY_LIST, fresh.toString()).apply();
         } catch (Exception ignored) {
         }
+    }
+
+    private void renameRecent(String uri, String newName) {
+        try {
+            SharedPreferences p = getSharedPreferences(PREFS, MODE_PRIVATE);
+            JSONArray list = new JSONArray(p.getString(KEY_LIST, "[]"));
+            for (int i = 0; i < list.length(); i++) {
+                JSONObject o = list.getJSONObject(i);
+                if (o.getString("uri").equals(uri)) {
+                    String n = newName == null ? "" : newName.trim();
+                    if (n.isEmpty()) { // kosong = kembali ke nama asli
+                        o.put("name", displayName(this, Uri.parse(uri)));
+                        o.put("custom", false);
+                    } else {
+                        o.put("name", n);
+                        o.put("custom", true);
+                    }
+                }
+            }
+            p.edit().putString(KEY_LIST, list.toString()).apply();
+        } catch (Exception ignored) {
+        }
+        refreshRecent();
     }
 
     private void removeRecent(String uri) {
@@ -601,11 +721,7 @@ public class MainActivity extends BaseActivity {
 
         row.setOnClickListener(v -> openViewer(Uri.parse(uri), ViewerOptions.load(this)));
         row.setOnLongClickListener(v -> {
-            u.confirm(getString(R.string.delete_title), getString(R.string.delete_body, name), name,
-                    getString(R.string.cancel), getString(R.string.remove), () -> {
-                        removeRecent(uri);
-                        Toast.makeText(this, R.string.removed_toast, Toast.LENGTH_SHORT).show();
-                    });
+            showItemMenu(uri, name);
             return true;
         });
 
