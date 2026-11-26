@@ -55,6 +55,9 @@ public class ViewerActivity extends BaseActivity {
     private boolean autoDarkIcons = true;
     // Hasil membaca piksel layar sungguhan (bekerja juga untuk isi iframe, mis. artifact Claude)
     private Bitmap probeT, probeB;
+    private long pollDelay = 250;
+    private int stableCount = 0;
+    private boolean touching = false;
     private long lastTouch = 0;
     private boolean autoDarkStatus = true, autoDarkNav = true, pixelOk = false, copying = false;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -63,7 +66,7 @@ public class ViewerActivity extends BaseActivity {
         public void run() {
             detectTopColor();
             samplePixels();
-            handler.postDelayed(this, 2000);
+            handler.postDelayed(this, pollDelay);
         }
     };
 
@@ -152,7 +155,6 @@ public class ViewerActivity extends BaseActivity {
         webView = new WebView(this);
         root.addView(webView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         setContentView(root);
 
         WebSettings s = webView.getSettings();
@@ -366,6 +368,27 @@ public class ViewerActivity extends BaseActivity {
         }
     }
 
+    /** Minta layar berjalan di refresh rate tertinggi (mis. 120 Hz) supaya animasi terasa halus. */
+    private void requestHighRefreshRate() {
+        try {
+            android.view.Display d = Build.VERSION.SDK_INT >= 30 ? getDisplay() : getWindowManager().getDefaultDisplay();
+            if (d == null) return;
+            android.view.Display.Mode cur = d.getMode();
+            android.view.Display.Mode best = cur;
+            for (android.view.Display.Mode m : d.getSupportedModes()) {
+                if (m.getPhysicalWidth() == cur.getPhysicalWidth() && m.getPhysicalHeight() == cur.getPhysicalHeight()
+                        && m.getRefreshRate() > best.getRefreshRate()) {
+                    best = m;
+                }
+            }
+            WindowManager.LayoutParams lp = getWindow().getAttributes();
+            lp.preferredDisplayModeId = best.getModeId();
+            lp.preferredRefreshRate = best.getRefreshRate();
+            getWindow().setAttributes(lp);
+        } catch (Exception ignored) {
+        }
+    }
+
     // ---------- Ketuk 3 jari: panel pengaturan prototype ----------
 
     private boolean tfActive = false;
@@ -376,6 +399,9 @@ public class ViewerActivity extends BaseActivity {
     @Override
     public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
         lastTouch = android.os.SystemClock.uptimeMillis();
+        int am = ev.getActionMasked();
+        if (am == android.view.MotionEvent.ACTION_DOWN) touching = true;
+        else if (am == android.view.MotionEvent.ACTION_UP || am == android.view.MotionEvent.ACTION_CANCEL) touching = false;
         switch (ev.getActionMasked()) {
             case android.view.MotionEvent.ACTION_DOWN:
                 tfActive = false;
@@ -458,8 +484,8 @@ public class ViewerActivity extends BaseActivity {
     /** Baca warna piksel di balik status bar dan navigation bar, lalu atur warna ikonnya. */
     private void samplePixels() {
         if (webView == null || customView != null || copying || opts.mode == ViewerOptions.MODE_IMMERSIVE) return;
-        // Jangan ganggu saat jari menyentuh layar / halaman sedang bergerak: baca piksel bikin frame tersendat
-        if (android.os.SystemClock.uptimeMillis() - lastTouch < 800) return;
+        // Jangan baca piksel saat jari menyentuh layar (bikin frame tersendat); setelah jari lepas langsung diperbarui
+        if (touching) return;
         final View dv = getWindow().getDecorView();
         final int w = dv.getWidth(), h = dv.getHeight();
         if (w <= 0 || h <= 0 || !dv.isAttachedToWindow()) return;
@@ -529,6 +555,13 @@ public class ViewerActivity extends BaseActivity {
             applyBackgrounds();
         }
         if (changed) applyBars();
+        // Cepat saat warna sedang berubah, hemat saat stabil
+        if (changed || dr > 30) {
+            stableCount = 0;
+            pollDelay = 250;
+        } else if (++stableCount > 6) {
+            pollDelay = 600;
+        }
     }
 
     private void applyBackgrounds() {
@@ -693,6 +726,7 @@ public class ViewerActivity extends BaseActivity {
     protected void onResume() {
         super.onResume();
         webView.onResume();
+        requestHighRefreshRate();
         applyBars();
         handler.removeCallbacks(colorPoller);
         handler.postDelayed(colorPoller, 800);
