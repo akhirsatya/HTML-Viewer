@@ -94,9 +94,38 @@ public class ViewerActivity extends BaseActivity {
           + "[].slice.call(p.children).forEach(function(c){if(c!==n&&c.tagName!=='STYLE'&&c.tagName!=='SCRIPT'&&c.tagName!=='LINK'){c.setAttribute('data-pv-hide','1');}});"
           + "if(p!==document.body)p.setAttribute('data-pv-anc','1');"
           + "n=p;}"
+          + "[[W/2,20],[30,20],[W-30,20],[W/2,50]].forEach(function(pt){"
+          + "document.elementsFromPoint(pt[0],pt[1]).forEach(function(e){"
+          + "if(e===f||e===document.body||e===document.documentElement||e.contains(f)||f.contains(e))return;"
+          + "e.setAttribute('data-pv-hide','1');});});"
           + "var prev=document.querySelectorAll('iframe[data-pv-frame]');for(var j=0;j<prev.length;j++)prev[j].removeAttribute('data-pv-frame');"
           + "f.setAttribute('data-pv-frame','1');"
           + "return 'ok';}catch(e){return 'err';}})()";
+
+    // SEMENTARA: ringkasan struktur halaman supaya bisa dicek kalau toolbar masih muncul
+    private static final String JS_DIAG =
+            "(function(){try{var W=innerWidth,H=innerHeight,o='W='+W+' H='+H+'\\n';"
+          + "var fs=document.querySelectorAll('iframe');o+='iframes='+fs.length+'\\n';"
+          + "for(var i=0;i<fs.length&&i<6;i++){var r=fs[i].getBoundingClientRect();"
+          + "o+=' #'+i+' '+Math.round(r.left)+','+Math.round(r.top)+' '+Math.round(r.width)+'x'+Math.round(r.height)"
+          + "+' '+(fs[i].getAttribute('src')||'(no src)').slice(0,70)+(fs[i].hasAttribute('data-pv-frame')?' [PV]':'')+'\\n';}"
+          + "o+='top elements:\\n';"
+          + "document.elementsFromPoint(W/2,20).slice(0,8).forEach(function(e){var r=e.getBoundingClientRect();"
+          + "o+=' '+e.tagName+'.'+String(e.className).slice(0,40)+' h='+Math.round(r.height)+' pos='+getComputedStyle(e).position"
+          + "+(e.hasAttribute('data-pv-hide')?' [hidden]':'')+'\\n';});"
+          + "o+='host='+location.hostname;return o;}catch(e){return 'diag err '+e;}})()";
+
+    private boolean diagShown = false;
+
+    private void showDiagLater() {
+        if (diagShown) return;
+        diagShown = true;
+        handler.postDelayed(() -> webView.evaluateJavascript(JS_DIAG, value -> {
+            String txt = value == null ? "null" : value.replace("\\n", "\n").replace("\\\"", "\"");
+            new android.app.AlertDialog.Builder(this).setTitle("Debug info (send screenshot)")
+                    .setMessage(txt).setPositiveButton("OK", null).show();
+        }), 12000);
+    }
 
     private boolean isArtifactPage(String url) {
         if (url == null) return false;
@@ -167,7 +196,10 @@ public class ViewerActivity extends BaseActivity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 detectTopColor();
-                if (isArtifactPage(url)) startCleaning();
+                if (isArtifactPage(url)) {
+                    startCleaning();
+                    showDiagLater();
+                }
             }
 
             @Override
