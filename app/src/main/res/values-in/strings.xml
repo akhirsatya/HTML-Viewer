@@ -93,4 +93,12 @@
     <!-- Viewer -->
     <string name="toast_no_file">Tidak ada file untuk dibuka</string>
     <string name="toast_open_failed">Gagal membuka file: %1$s</string>
+    <string name="link_button">Buka dari link</string>
+    <string name="link_title">Buka link</string>
+    <string name="link_desc">Tempel link artifact Claude atau halaman web apa saja. Dibuka fullscreen, sama seperti file.</string>
+    <string name="link_hint">https://claude.ai/artifact/…</string>
+    <string name="link_open">Buka</string>
+    <string name="toast_bad_link">Itu sepertinya bukan link.</string>
+    <string name="link_paste">Tempel</string>
+    <string name="toast_clipboard_empty">Tidak ada link di clipboard.</string>
 </resources>

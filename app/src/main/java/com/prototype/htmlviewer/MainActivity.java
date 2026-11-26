@@ -2,6 +2,9 @@ package com.prototype.htmlviewer;
 
 import android.app.Activity;
 import android.app.Dialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.Cursor;
@@ -13,6 +16,7 @@ import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -159,6 +163,12 @@ public class MainActivity extends BaseActivity {
         btn.setBackground(u.rect(u.prim, 0, 0));
         btn.setOnClickListener(v -> openPicker());
         bar.addView(btn, u.lp(ViewGroup.LayoutParams.MATCH_PARENT, u.dp(50), 0, 14, 0, 0));
+
+        TextView linkBtn = u.text(getString(R.string.link_button), 15, u.text, true);
+        linkBtn.setGravity(Gravity.CENTER);
+        linkBtn.setBackground(u.rect(0x00000000, u.line, 1));
+        linkBtn.setOnClickListener(v -> showLinkDialog());
+        bar.addView(linkBtn, u.lp(ViewGroup.LayoutParams.MATCH_PARENT, u.dp(50), 0, 8, 0, 0));
         root.addView(bar);
 
         setContentView(root);
@@ -191,6 +201,91 @@ public class MainActivity extends BaseActivity {
         v.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         o.putInto(v);
         startActivity(v);
+    }
+
+    // ---------- Buka dari link ----------
+
+    /** Ambil URL http(s) pertama dari teks (mis. hasil Share dari Claude). */
+    static Uri extractUrl(String text) {
+        if (text == null) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("https?://[^\\s<>\"]+").matcher(text);
+        if (!m.find()) return null;
+        return Uri.parse(m.group());
+    }
+
+    private void showLinkDialog() {
+        final Dialog d = u.newDialog();
+        LinearLayout sheet = new LinearLayout(this);
+        sheet.setOrientation(LinearLayout.VERTICAL);
+        sheet.setPadding(u.dp(20), u.dp(12), u.dp(20), u.dp(24));
+        sheet.setBackground(u.rect(u.sheet, u.line, 1));
+
+        View handle = new View(this);
+        handle.setBackgroundColor(u.line);
+        LinearLayout.LayoutParams hp = u.lp(u.dp(36), u.dp(4), 0, 0, 0, 16);
+        hp.gravity = Gravity.CENTER_HORIZONTAL;
+        sheet.addView(handle, hp);
+
+        sheet.addView(u.text(getString(R.string.link_title), 18, u.text, true));
+        sheet.addView(u.text(getString(R.string.link_desc), 13, u.sub, false),
+                u.lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0, 4, 0, 14));
+
+        final EditText input = new EditText(this);
+        input.setHint(getString(R.string.link_hint));
+        input.setHintTextColor(u.sub);
+        input.setTextColor(u.text);
+        input.setTextSize(14);
+        input.setTypeface(u.body);
+        input.setSingleLine(true);
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        input.setBackground(u.rect(u.surf, u.line, 1));
+        input.setPadding(u.dp(14), u.dp(14), u.dp(14), u.dp(14));
+
+        // Baris input + tombol Paste
+        LinearLayout inputRow = new LinearLayout(this);
+        inputRow.setOrientation(LinearLayout.HORIZONTAL);
+        inputRow.addView(input, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+        TextView paste = u.text(getString(R.string.link_paste), 14, u.text, true);
+        paste.setGravity(Gravity.CENTER);
+        paste.setBackground(u.rect(u.sheet, u.line, 1));
+        paste.setPadding(u.dp(16), 0, u.dp(16), 0);
+        paste.setOnClickListener(v -> {
+            Uri clip = null;
+            try {
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                ClipData cd = cm.getPrimaryClip();
+                if (cd != null && cd.getItemCount() > 0) {
+                    CharSequence t = cd.getItemAt(0).coerceToText(this);
+                    clip = extractUrl(t == null ? null : t.toString());
+                }
+            } catch (Exception ignored) {
+            }
+            if (clip == null) {
+                Toast.makeText(this, R.string.toast_clipboard_empty, Toast.LENGTH_SHORT).show();
+            } else {
+                input.setText(clip.toString());
+                input.setSelection(input.getText().length());
+            }
+        });
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        pp.leftMargin = u.dp(8);
+        inputRow.addView(paste, pp);
+        sheet.addView(inputRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView go = u.text(getString(R.string.link_open), 16, u.onPrim, true);
+        go.setGravity(Gravity.CENTER);
+        go.setBackground(u.rect(u.prim, 0, 0));
+        go.setOnClickListener(v -> {
+            Uri url = extractUrl(input.getText().toString());
+            if (url == null) {
+                Toast.makeText(this, R.string.toast_bad_link, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            d.dismiss();
+            showOptionsSheet(url, displayName(this, url), true);
+        });
+        sheet.addView(go, u.lp(ViewGroup.LayoutParams.MATCH_PARENT, u.dp(54), 0, 16, 0, 0));
+        u.showBottom(d, sheet);
     }
 
     // ---------- Panel pengaturan tampilan ----------
@@ -357,6 +452,14 @@ public class MainActivity extends BaseActivity {
     // ---------- Daftar file terakhir ----------
 
     static String displayName(Activity a, Uri uri) {
+        if ("http".equals(uri.getScheme()) || "https".equals(uri.getScheme())) {
+            String seg = uri.getLastPathSegment();
+            String host = uri.getHost() == null ? "link" : uri.getHost();
+            if (host.endsWith("claude.ai") && seg != null) {
+                return "Artifact " + (seg.length() > 8 ? seg.substring(0, 8) : seg);
+            }
+            return host;
+        }
         String name = null;
         try (Cursor c = a.getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
             if (c != null && c.moveToFirst()) name = c.getString(0);

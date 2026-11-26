@@ -17,6 +17,7 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.ValueCallback;
+import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -210,12 +211,29 @@ public class ViewerActivity extends BaseActivity {
         }
         if (uri == null) {
             String text = intent.getStringExtra(Intent.EXTRA_TEXT);
-            if (text != null && text.contains("<")) {
+            Uri shared = text == null ? null : MainActivity.extractUrl(text);
+            if (shared != null) {
+                uri = shared;
+            } else if (text != null && text.contains("<")) {
                 webView.loadDataWithBaseURL(BASE_URL, text, "text/html", "UTF-8", null);
                 return;
             }
-            Toast.makeText(this, getString(R.string.toast_no_file), Toast.LENGTH_SHORT).show();
-            finish();
+            if (uri == null) {
+                Toast.makeText(this, getString(R.string.toast_no_file), Toast.LENGTH_SHORT).show();
+                finish();
+                return;
+            }
+        }
+
+        if ("http".equals(uri.getScheme()) || "https".equals(uri.getScheme())) {
+            // Link online (mis. artifact Claude): muat langsung, tetap fullscreen
+            WebSettings ws = webView.getSettings();
+            ws.setUserAgentString(ws.getUserAgentString().replace("; wv", ""));
+            CookieManager cm = CookieManager.getInstance();
+            cm.setAcceptCookie(true);
+            cm.setAcceptThirdPartyCookies(webView, true);
+            webView.loadUrl(uri.toString());
+            MainActivity.addRecent(this, uri, MainActivity.displayName(this, uri), opts.mode);
             return;
         }
 

@@ -97,4 +97,12 @@
     <!-- Viewer -->
     <string name="toast_no_file">No file to open</string>
     <string name="toast_open_failed">Couldn\'t open file: %1$s</string>
+    <string name="link_button">Open from link</string>
+    <string name="link_title">Open a link</string>
+    <string name="link_desc">Paste a Claude artifact link or any web page. It opens fullscreen, just like a file.</string>
+    <string name="link_hint">https://claude.ai/artifact/…</string>
+    <string name="link_open">Open</string>
+    <string name="toast_bad_link">That doesn\'t look like a link.</string>
+    <string name="link_paste">Paste</string>
+    <string name="toast_clipboard_empty">No link in the clipboard.</string>
 </resources>
