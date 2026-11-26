@@ -54,6 +54,8 @@ public class ViewerActivity extends BaseActivity {
     private int topColor = Color.WHITE;
     private boolean autoDarkIcons = true;
     // Hasil membaca piksel layar sungguhan (bekerja juga untuk isi iframe, mis. artifact Claude)
+    private Bitmap probeT, probeB;
+    private long lastTouch = 0;
     private boolean autoDarkStatus = true, autoDarkNav = true, pixelOk = false, copying = false;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable colorPoller = new Runnable() {
@@ -61,7 +63,7 @@ public class ViewerActivity extends BaseActivity {
         public void run() {
             detectTopColor();
             samplePixels();
-            handler.postDelayed(this, 900);
+            handler.postDelayed(this, 2000);
         }
     };
 
@@ -79,13 +81,14 @@ public class ViewerActivity extends BaseActivity {
     private static final String JS_CLEAN_ARTIFACT =
             "(function(){try{"
           +             "var W=innerWidth,H=innerHeight;"
-          +             "if(window.__pvUndo){window.__pvUndo.forEach(function(u){u[0].style.setProperty(u[1],u[2],u[3]);});}"
-          +             "window.__pvUndo=[];"
-          +             "function set(el,k,v){window.__pvUndo.push([el,k,el.style.getPropertyValue(k),el.style.getPropertyPriority(k)]);el.style.setProperty(k,v,'important');}"
           +             "var fs=[].slice.call(document.querySelectorAll('iframe')).filter(function(x){return x.offsetWidth>=W*0.6&&x.offsetHeight>=H*0.4;});"
           +             "if(!fs.length)return 'wait';"
           +             "fs.sort(function(a,b){return b.offsetWidth*b.offsetHeight-a.offsetWidth*a.offsetHeight;});"
           +             "var f=fs[0];"
+          +             "if(window.__pvF===f&&f.style.position==='fixed'&&f.style.zIndex==='2147483647')return 'ok';"
+          +             "if(window.__pvUndo){window.__pvUndo.forEach(function(u){try{u[0].style.setProperty(u[1],u[2],u[3]);}catch(e){}});}"
+          +             "window.__pvUndo=[];"
+          +             "function set(el,k,v){window.__pvUndo.push([el,k,el.style.getPropertyValue(k),el.style.getPropertyPriority(k)]);el.style.setProperty(k,v,'important');}"
           +             "var n=f;"
           +             "while(n&&n!==document.body){var p=n.parentElement;if(!p)break;"
           +             "[].slice.call(p.children).forEach(function(c){if(c!==n&&c.tagName!=='STYLE'&&c.tagName!=='SCRIPT'&&c.tagName!=='LINK'){set(c,'display','none');}});"
@@ -98,6 +101,7 @@ public class ViewerActivity extends BaseActivity {
           +             "set(f,'position','fixed');['top','left','right','bottom'].forEach(function(k){set(f,k,'0');});"
           +             "set(f,'width','100vw');set(f,'height','100vh');set(f,'max-width','none');set(f,'max-height','none');"
           +             "set(f,'border','0');set(f,'z-index','2147483647');"
+          +             "window.__pvF=f;"
           +             "return 'ok';}catch(e){return 'err '+e;}})()";
 
     private boolean isArtifactPage(String url) {
@@ -123,13 +127,13 @@ public class ViewerActivity extends BaseActivity {
     /** Ulangi beberapa detik karena halaman dibuat bertahap oleh JavaScript (juga setelah login). */
     private void startCleaning() {
         cleanGen++;
-        cleanArtifactPage(cleanGen, 40);
+        cleanArtifactPage(cleanGen, 20);
     }
 
     private void cleanArtifactPage(final int gen, final int tries) {
         if (webView == null || tries <= 0 || gen != cleanGen) return;
         if (isArtifactPage(webView.getUrl())) webView.evaluateJavascript(JS_CLEAN_ARTIFACT, null);
-        handler.postDelayed(() -> cleanArtifactPage(gen, tries - 1), 800);
+        handler.postDelayed(() -> cleanArtifactPage(gen, tries - 1), 1500);
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -148,6 +152,7 @@ public class ViewerActivity extends BaseActivity {
         webView = new WebView(this);
         root.addView(webView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         setContentView(root);
 
         WebSettings s = webView.getSettings();
@@ -370,6 +375,7 @@ public class ViewerActivity extends BaseActivity {
 
     @Override
     public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
+        lastTouch = android.os.SystemClock.uptimeMillis();
         switch (ev.getActionMasked()) {
             case android.view.MotionEvent.ACTION_DOWN:
                 tfActive = false;
@@ -452,6 +458,8 @@ public class ViewerActivity extends BaseActivity {
     /** Baca warna piksel di balik status bar dan navigation bar, lalu atur warna ikonnya. */
     private void samplePixels() {
         if (webView == null || customView != null || copying || opts.mode == ViewerOptions.MODE_IMMERSIVE) return;
+        // Jangan ganggu saat jari menyentuh layar / halaman sedang bergerak: baca piksel bikin frame tersendat
+        if (android.os.SystemClock.uptimeMillis() - lastTouch < 800) return;
         final View dv = getWindow().getDecorView();
         final int w = dv.getWidth(), h = dv.getHeight();
         if (w <= 0 || h <= 0 || !dv.isAttachedToWindow()) return;
@@ -462,8 +470,11 @@ public class ViewerActivity extends BaseActivity {
         final Rect bottom = edge ? new Rect(0, h - nb, w, h) : new Rect(0, Math.max(0, h - nb - strip), w, h - nb);
         if (top.height() <= 0 || bottom.height() <= 0) return;
         copying = true;
-        final Bitmap bt = Bitmap.createBitmap(24, 4, Bitmap.Config.ARGB_8888);
-        final Bitmap bb = Bitmap.createBitmap(24, 4, Bitmap.Config.ARGB_8888);
+        if (probeT == null) {
+            probeT = Bitmap.createBitmap(24, 4, Bitmap.Config.ARGB_8888);
+            probeB = Bitmap.createBitmap(24, 4, Bitmap.Config.ARGB_8888);
+        }
+        final Bitmap bt = probeT, bb = probeB;
         try {
             PixelCopy.request(getWindow(), top, bt, r1 -> {
                 if (r1 != PixelCopy.SUCCESS) {
@@ -511,7 +522,9 @@ public class ViewerActivity extends BaseActivity {
         autoDarkStatus = sd;
         autoDarkNav = nd;
         autoDarkIcons = sd;
-        if (color != topColor) {
+        int dr = Math.abs(Color.red(color) - Color.red(topColor)) + Math.abs(Color.green(color) - Color.green(topColor))
+                + Math.abs(Color.blue(color) - Color.blue(topColor));
+        if (dr > 30) { // abaikan perubahan warna kecil supaya tidak sibuk menggambar ulang
             topColor = color;
             applyBackgrounds();
         }
@@ -599,7 +612,7 @@ public class ViewerActivity extends BaseActivity {
 
     /** Cek warna bagian atas halaman; dipakai untuk warna ikon bar (mode otomatis) dan latar di mode aman. */
     private void detectTopColor() {
-        if (webView == null || customView != null) return;
+        if (webView == null || customView != null || pixelOk) return;
         webView.evaluateJavascript(JS_TOP_COLOR, value -> {
             if (value == null || pixelOk) return;
             String v = value.replace("\"", "");
