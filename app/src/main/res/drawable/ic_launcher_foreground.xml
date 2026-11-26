@@ -3,26 +3,10 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Bingkai HP (sudut tajam) -->
     <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="2.4"
-        android:pathData="M38,25 L70,25 L70,83 L38,83 Z" />
-    <!-- Layar berwarna sage tipis -->
+        android:fillColor="#F2F2F2"
+        android:pathData="M37.2 63.84H26V39.51Q26 39.09 26.73 38.82Q27.47 38.54 28.47 38.41Q29.48 38.27 30.36 38.22Q31.25 38.16 31.6 38.16H46.66Q47.01 38.16 47.9 38.22Q48.79 38.27 49.79 38.41Q50.79 38.54 51.53 38.82Q52.26 39.09 52.26 39.51V54.96Q52.26 55.38 51.53 55.65Q50.79 55.92 49.79 56.06Q48.79 56.19 47.9 56.25Q47.01 56.31 46.66 56.31H37.2ZM37.2 53.61H41.06V40.86H37.2ZM54.19 38.16H65.39V61.14H66.55L70.8 55.69V38.16H82V55.81Q82 55.89 81.92 56.04Q81.15 57.12 80.3 58.16Q79.45 59.21 78.64 60.25Q78.14 60.87 77.67 61.54Q77.21 62.22 76.67 62.8Q76.25 63.26 75.14 63.47Q74.04 63.69 72.92 63.76Q71.8 63.84 71.19 63.84H59.79Q59.45 63.84 58.56 63.78Q57.67 63.73 56.66 63.59Q55.66 63.46 54.93 63.18Q54.19 62.91 54.19 62.49Z" />
     <path
         android:fillColor="#8FB8A0"
-        android:fillAlpha="0.45"
-        android:pathData="M40.2,27.2 L67.8,27.2 L67.8,80.8 L40.2,80.8 Z" />
-    <!-- Status bar dan garis swipe home -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M48,31.5 L60,31.5 L60,33 L48,33 Z" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M51,76.5 L57,76.5 L57,78 L51,78 Z" />
-    <!-- Tombol play: tanda prototype yang bisa dijalankan -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M49.5,46 L62,54 L49.5,62 Z" />
+        android:pathData="M26 68.34H82V70.54H26Z" />
 </vector>
