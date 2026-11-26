@@ -67,6 +67,49 @@ public class ViewerActivity extends BaseActivity {
           + "while(el&&!c){c=bg(el);el=el.parentElement;}"
           + "return c||bg(document.body)||bg(document.documentElement)||'rgb(255,255,255)';})()";
 
+
+    // Halaman artifact claude.ai punya toolbar sendiri di atas. Sembunyikan semuanya
+    // dan buat iframe artifact memenuhi layar supaya tampil seperti app asli.
+    private static final String JS_CLEAN_ARTIFACT =
+            "(function(){try{var fs=[].slice.call(document.querySelectorAll('iframe'));"
+          + "if(!fs.length)return 'none';"
+          + "fs.sort(function(a,b){return b.offsetWidth*b.offsetHeight-a.offsetWidth*a.offsetHeight;});"
+          + "var f=fs[0];"
+          + "var st=document.getElementById('pv-clean');"
+          + "if(!st){st=document.createElement('style');st.id='pv-clean';"
+          + "st.textContent='html,body{margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important}';"
+          + "document.head.appendChild(st);}"
+          + "var n=f;"
+          + "while(n&&n!==document.body){var p=n.parentElement;if(!p)break;"
+          + "[].slice.call(p.children).forEach(function(c){if(c!==n&&c.tagName!=='STYLE'&&c.tagName!=='SCRIPT'){c.style.setProperty('display','none','important');}});"
+          + "if(p!==document.body){['transform','filter','perspective'].forEach(function(k){p.style.setProperty(k,'none','important');});"
+          + "['margin','padding','border','top','left','right','bottom'].forEach(function(k){p.style.setProperty(k,'0','important');});"
+          + "p.style.setProperty('position','static','important');p.style.setProperty('max-width','none','important');"
+          + "p.style.setProperty('width','100%','important');p.style.setProperty('height','100%','important');}"
+          + "n=p;}"
+          + "f.style.setProperty('position','fixed','important');"
+          + "['top','left','right','bottom'].forEach(function(k){f.style.setProperty(k,'0','important');});"
+          + "f.style.setProperty('width','100vw','important');f.style.setProperty('height','100vh','important');"
+          + "f.style.setProperty('max-width','none','important');f.style.setProperty('max-height','none','important');"
+          + "f.style.setProperty('border','0','important');f.style.setProperty('z-index','2147483647','important');"
+          + "return 'ok';}catch(e){return 'err';}})()";
+
+    private boolean isArtifactPage(String url) {
+        if (url == null) return false;
+        Uri u = Uri.parse(url);
+        String h = u.getHost();
+        return h != null && (h.equals("claude.ai") || h.endsWith(".claude.ai") || h.endsWith(".claudeusercontent.com"))
+                && u.getPath() != null && u.getPath().contains("artifact");
+    }
+
+    /** Ulangi beberapa detik karena halaman dibuat bertahap oleh JavaScript. */
+    private void cleanArtifactPage(final int tries) {
+        if (webView == null || tries <= 0) return;
+        if (!isArtifactPage(webView.getUrl())) return;
+        webView.evaluateJavascript(JS_CLEAN_ARTIFACT, null);
+        handler.postDelayed(() -> cleanArtifactPage(tries - 1), 800);
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -104,6 +147,7 @@ public class ViewerActivity extends BaseActivity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 detectTopColor();
+                if (isArtifactPage(url)) cleanArtifactPage(25);
             }
 
             @Override
